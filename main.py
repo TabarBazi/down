@@ -4,8 +4,9 @@ import sys
 
 from bot.core import bot, setup_dispatcher
 from utils.helpers import check_dependencies
-from utils.db_session import engine 
-from utils.models import Base 
+from utils.db_session import engine
+from utils.models import Base
+from utils.telegram_client import init_telethon_client, shutdown_telethon_client
 
 async def init_database():
     """
@@ -34,13 +35,23 @@ async def main():
     logger.info("Initializing database...")
     await init_database()
     
-    # The Telethon authorization check is no longer needed at startup.
-    # It will be handled by the get_or_create_personal_archive function when needed.
+    logger.info("Starting Telethon client...")
+    try:
+        await init_telethon_client()
+    except RuntimeError as err:
+        logger.error(f"Failed to start Telethon client: {err}")
+        sys.exit(1)
+    except Exception:
+        logger.exception("Unexpected error while starting Telethon client.")
+        sys.exit(1)
 
     dp = setup_dispatcher()
 
     logger.info("Starting bot polling...")
-    await dp.start_polling(bot)
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await shutdown_telethon_client()
 
 
 if __name__ == "__main__":
