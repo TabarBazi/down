@@ -20,18 +20,11 @@ _client_lock = asyncio.Lock()
 
 async def init_telethon_client(force_reconnect: bool = False) -> TelegramClient:
     """Ensure a single connected Telethon client is available."""
-
-    global _telethon_client
-
-    async with _client_lock:
         if _telethon_client is None:
             _telethon_client = TelegramClient(
                 StringSession(settings.session_string),
                 settings.api_id,
                 settings.api_hash,
-            )
-
-        if force_reconnect or not _telethon_client.is_connected():
             await _telethon_client.connect()
             if not await _telethon_client.is_user_authorized():
                 logger.error(
@@ -49,7 +42,6 @@ async def init_telethon_client(force_reconnect: bool = False) -> TelegramClient:
 async def shutdown_telethon_client() -> None:
     """Disconnect the shared Telethon client if it is running."""
 
-    global _telethon_client
 
     async with _client_lock:
         if _telethon_client and _telethon_client.is_connected():
@@ -77,7 +69,7 @@ async def get_or_create_personal_archive(session: AsyncSession, user_id: int, bo
 
     try:
         result = await client(CreateChannelRequest(
-            title=f"Archive for {user_id}",
+
             about=f"Personal media archive for @{bot_username}",
             megagroup=False
         ))
