@@ -15,44 +15,16 @@ from utils import database
 logger = logging.getLogger(__name__)
 
 _telethon_client: Optional[TelegramClient] = None
-_client_loop: Optional[asyncio.AbstractEventLoop] = None
 _client_lock = asyncio.Lock()
 
 
 async def init_telethon_client(force_reconnect: bool = False) -> TelegramClient:
     """Ensure a single connected Telethon client is available."""
-
-    global _telethon_client, _client_loop
-
-    async with _client_lock:
-        current_loop = asyncio.get_running_loop()
-
-        if force_reconnect and _telethon_client is not None:
-            if _telethon_client.is_connected():
-                await _telethon_client.disconnect()
-            _telethon_client = None
-            _client_loop = None
-
-        if (
-            _telethon_client is not None
-            and _client_loop is not None
-            and _client_loop is not current_loop
-        ):
-            if _telethon_client.is_connected():
-                await _telethon_client.disconnect()
-            _telethon_client = None
-            _client_loop = None
-
         if _telethon_client is None:
             _telethon_client = TelegramClient(
                 StringSession(settings.session_string),
                 settings.api_id,
                 settings.api_hash,
-                loop=current_loop,
-            )
-            _client_loop = current_loop
-
-        if not _telethon_client.is_connected():
             await _telethon_client.connect()
             if not await _telethon_client.is_user_authorized():
                 logger.error(
@@ -70,13 +42,11 @@ async def init_telethon_client(force_reconnect: bool = False) -> TelegramClient:
 async def shutdown_telethon_client() -> None:
     """Disconnect the shared Telethon client if it is running."""
 
-    global _telethon_client, _client_loop
 
     async with _client_lock:
         if _telethon_client and _telethon_client.is_connected():
             await _telethon_client.disconnect()
             logger.info("[Telethon] Client disconnected.")
-        _client_loop = None
 
 
 async def get_or_create_personal_archive(session: AsyncSession, user_id: int, bot_username: str) -> int | None:
@@ -99,7 +69,7 @@ async def get_or_create_personal_archive(session: AsyncSession, user_id: int, bo
 
     try:
         result = await client(CreateChannelRequest(
-            title=str(user_id),
+
             about=f"Personal media archive for @{bot_username}",
             megagroup=False
         ))
