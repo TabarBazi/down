@@ -7,6 +7,7 @@ import re
 import shutil
 import zipfile
 from datetime import datetime
+from threading import Lock
 from typing import Dict, List, Tuple, Coroutine
 from urllib.parse import urljoin, urlparse
 import json
@@ -31,15 +32,27 @@ from utils import database
 logger = logging.getLogger(__name__)
 
 # --- Async Runner (FIXED) ---
+_shared_loop = None
+_shared_loop_lock = Lock()
+
+
 def run_async_in_sync(coro: Coroutine):
     """
     Safely runs an async coroutine from a synchronous context like Celery.
+    Ensures a single event loop is reused so Telethon stays bound to the
+    same loop across sequential task executions.
     """
+
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:  # 'RuntimeError: There is no current event loop...'
-        loop = asyncio.new_event_loop()
+        global _shared_loop
+        with _shared_loop_lock:
+            if _shared_loop is None or _shared_loop.is_closed():
+                _shared_loop = asyncio.new_event_loop()
+            loop = _shared_loop
         asyncio.set_event_loop(loop)
+
     return loop.run_until_complete(coro)
 
 
