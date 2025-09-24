@@ -32,6 +32,11 @@ def get_bot_instance():
 def process_erome_album_task(chat_id: int, user_id: int, album_title: str, media_urls: dict, choice: str):
     async def _async_worker():
         bot = get_bot_instance()
+        bot_username = (await bot.get_me()).username
+        if not bot_username:
+            logger.error("Failed to determine bot username for personal archive access.")
+            await bot.send_message(chat_id=chat_id, text="⚠️ Unable to access personal archive: bot username unavailable.")
+            return
         
         images_to_dl = media_urls.get('images', []) if choice in ['images', 'both'] else []
         videos_to_dl = media_urls.get('videos', []) if choice in ['videos', 'both'] else []
@@ -141,6 +146,16 @@ def process_gallery_dl_task(chat_id: int, url: str, create_zip: bool, user_id: i
             chat_id=chat_id,
             text=f"📥 Request for '{urllib.parse.urlparse(url).netloc}' received..."
         )
+
+        bot_username = (await bot.get_me()).username
+        if not bot_username:
+            logger.error("Failed to determine bot username for personal archive access.")
+            await bot.edit_message_text(
+                text="⚠️ Unable to access personal archive: bot username unavailable.",
+                chat_id=chat_id,
+                message_id=status_message.message_id,
+            )
+            return
         # Use a temporary directory that is automatically cleaned up
         with tempfile.TemporaryDirectory() as temp_dir:
             zip_path = None # Define here for the finally block
@@ -197,7 +212,11 @@ def process_gallery_dl_task(chat_id: int, url: str, create_zip: bool, user_id: i
 
                                     watermarked_path = await asyncio.to_thread(video_processor.apply_watermark_to_video, file_path, watermark)
                                     
-                                    personal_archive_id = await telegram_client.get_or_create_personal_archive(session, user_id)
+                                    personal_archive_id = await telegram_client.get_or_create_personal_archive(
+                                        session,
+                                        user_id,
+                                        bot_username,
+                                    )
                                     if not personal_archive_id:
                                          await bot.send_message(chat_id=chat_id, text=f"⚠️ Could not access personal archive for: {filename}")
                                          continue
